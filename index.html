@@ -345,6 +345,34 @@ input[type="search"], input[type="text"], input:not([type]), textarea { font: in
 .hlring b { position: absolute; top: 30px; white-space: nowrap; font-size: 12px; font-weight: 700; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; box-shadow: var(--shadow); }
 @keyframes hlpulse { 0% { transform: scale(.7); opacity: 1; } 100% { transform: scale(1.35); opacity: .35; } }
 .card[data-hl]:hover { border-color: var(--d6); }
+
+/* ---------- v14: one-line list rows ---------- */
+.cline { display: none; }
+.compact .card { grid-template-columns: 28px 1fr auto; padding: 7px 10px; gap: 8px; align-items: center; border-radius: 10px; }
+.compact .card .ic { width: 28px; height: 28px; border-radius: 8px; }
+.compact .card .ic svg { width: 15px; height: 15px; }
+.compact .card h4 { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.compact .card .en, .compact .card .sub2, .compact .card .line { display: none; }
+.compact .cline { display: flex; gap: 6px; font-size: 11.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; min-width: 0; margin-top: 1px; }
+.compact .cmeta { flex: none; font-weight: 600; color: var(--ink); }
+.compact .cmenu { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.compact .cmenu::before { content: '· '; color: var(--ink-3); }
+.compact .add { padding: 5px 8px; font-size: 11.5px; }
+.compact .card.stay { grid-template-columns: 26px 1fr auto; }
+.compact .recb { width: 26px; height: 26px; font-size: 13px; }
+.compact .cards { gap: 5px; }
+.r1dot, .hotdot { font-style: normal; font-size: 11px; margin-right: 4px; }
+.r1dot { color: var(--accent); font-weight: 700; }
+.hotdot { color: var(--d6); }
+.card.spy { border-color: var(--d6); box-shadow: 0 0 0 1px var(--d6); }
+
+/* ---------- v15: tap to select ---------- */
+.card .body[data-pick] { cursor: pointer; }
+.cdet { display: none; grid-column: 1 / -1; align-items: center; gap: 8px; padding-top: 4px; }
+.card.sel { border-color: var(--d6); box-shadow: 0 0 0 1px var(--d6); }
+.card.sel .cdet { display: flex; }
+.hlring { pointer-events: auto; cursor: pointer; }
+.hlring span { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 
@@ -685,6 +713,8 @@ try {
     S.bases = (S.bases || []).map(b => ({ ...b, stay: P[b.stay] ? b.stay : null }));
   }
 } catch (e) { /* storage unavailable */ }
+// filters always start fresh: every category, every area, empty search
+Object.assign(S, { cat: 'all', area: 'all', q: '', sq: '', sel: null });
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: DATA.version, s: S })); } catch (e) { /* ignore */ } if (window.__sync) window.__sync.changed(); }
 
 // ---------- plan logic ----------
@@ -993,6 +1023,7 @@ function renderPanes(days, bud) {
   const pn = $('#panes');
   const keep = renderPanes.last === k ? pn.scrollTop : 0;
   pn.innerHTML = `<div class="pane">${html}</div>`;
+  if (renderPanes.last !== k && window.HLreset) window.HLreset();
   pn.scrollTop = keep; renderPanes.last = k;
   if (k === 'info') renderCalc();
 }
@@ -1091,9 +1122,18 @@ function paneOptions(days) {
   const target = S.view === 'all' ? null : S.view;
   const head = `<div class="filters">${cats.map(c => `<button class="chip" data-cat="${c}" aria-pressed="${S.cat === c}">${c === 'all' ? '전체' : CAT[c].ko} <small>${count(c)}</small></button>`).join('')}</div>
   <div class="row"><div class="seg" style="flex:1">${[['fit', '추천순'], ['price', '가격순']].map(([k, l]) => `<button data-sort="${k}" aria-pressed="${S.sort === k}">${l}</button>`).join('')}</div></div>
-  <p class="hint">${target ? `<b style="color:var(--d${target})">D${target}</b>에 바로 추가돼요. 카드를 누르면 상세 정보가 열려요.` : '위에서 날짜(D1~D8)를 고르면 그 날짜에 바로 추가돼요. 카드를 누르면 상세 정보가 열려요.'}</p>`;
+  <p class="hint">${target ? `<b style="color:var(--d${target})">D${target}</b>에 바로 추가돼요. 카드를 누르면 지도에 위치가 표시되고, [상세 정보 보기]로 자세히 볼 수 있어요.` : '위에서 날짜(D1~D8)를 고르면 그 날짜에 바로 추가돼요. 카드를 누르면 지도에 위치가 표시되고, [상세 정보 보기]로 자세히 볼 수 있어요.'}</p>`;
   const tools = `<div class="row"><input id="searchIn" type="search" placeholder="이름·지역·메뉴로 전체 검색" value="${esc(S.q || '')}" autocomplete="off" style="flex:1"><button class="btn small primary" data-addmine>＋ 내가 찾은 곳</button></div>`;
-  return tools + head + areaChips + `<div class="cards" id="cardList">${optionCards()}</div>`;
+  const dens = `<div class="row" style="justify-content:flex-end"><button class="btn small" data-dense>${isDense() ? '자세히 보기' : '한 줄로 보기'}</button></div>`;
+  return tools + head + areaChips + dens + `<div class="cards ${isDense() ? 'compact' : ''}" id="cardList">${optionCards()}</div>`;
+}
+function isDense() { return S.dense == null ? window.innerWidth < 900 : S.dense; }
+function mainMenu(p) {
+  const m = (p.menu || '').match(/추천\s*(?:메뉴)?\s*[:：]?\s*([^.。]+)/);
+  let s = m ? m[1] : '';
+  if (!s && p.cat !== 'food' && p.cat !== 'bar') s = p.sub || '';
+  s = s.replace(/\([^)]*\)/g, '').replace(/['"‘’“”]/g, '');
+  return s.split(/[,·、/]| 및 /).map(x => x.trim()).filter(Boolean).slice(0, 2).join(', ');
 }
 function optionCards() {
   const target = S.view === 'all' ? null : S.view;
@@ -1112,9 +1152,12 @@ function optionCards() {
     if (p.krStrength === 'strong' || (p.kpop || 0) >= 4) tags.push(`<span class="tag hot">한국인 인기</span>`);
     if (p.gr) tags.push(`<span class="tag">구글 ★${p.gr}${p.gn ? ` (${Number(p.gn).toLocaleString()})` : ''}</span>`);
     if (p.status === 'uncertain') tags.push(`<span class="tag unc">확인 필요</span>`);
-    return `<div class="card ${on ? 'on' : ''}" data-hl="${p.id}" style="--c:${c}"><span class="ic">${svg((CAT[p.cat] || CAT.food).icon)}</span>
-      <div class="body" data-open="${p.id}"><h4>${esc(p.ko)}</h4><div class="en">${esc(p.en || '')}${p.en ? ' · ' : ''}${esc(areaKo(p))}</div>${p.menu ? `<div class="sub2">${esc(p.menu)}</div>` : (p.fitFor ? `<div class="sub2">${esc(p.fitFor)}</div>` : '')}<div class="line">${tags.join('')}</div></div>
-      <button class="add ${on ? 'on' : ''}" data-toggle="${p.id}">${btn}</button></div>`;
+    const meta = [pr, p.cat === 'food' && p.meal ? { lunch: '점심', dinner: '저녁', both: '점심·저녁' }[p.meal] : '', p.cat === 'bar' && p.vibe ? (p.vibe === 'breezy' ? '바닷바람' : '에어컨') : '', p.gr ? `★${p.gr}` : ''].filter(Boolean);
+    const mm = mainMenu(p);
+    const cline = `<div class="cline"><span class="cmeta">${meta.map(esc).join(' · ')}</span>${mm ? `<span class="cmenu">${esc(mm)}</span>` : ''}</div>`;
+    return `<div class="card ${on ? 'on' : ''} ${S.sel === p.id ? 'sel' : ''}" data-hl="${p.id}" style="--c:${c}"><span class="ic">${svg((CAT[p.cat] || CAT.food).icon)}</span>
+      <div class="body" data-pick="${p.id}"><h4>${p.rec === 1 && !p.mine ? '<i class="r1dot" title="먼저 볼 곳">①</i>' : ''}${p.krStrength === 'strong' || (p.kpop || 0) >= 4 ? '<i class="hotdot" title="한국인 인기">♥</i>' : ''}${esc(p.ko)}</h4>${cline}<div class="en">${esc(p.en || '')}${p.en ? ' · ' : ''}${esc(areaKo(p))}</div>${p.menu ? `<div class="sub2">${esc(p.menu)}</div>` : (p.fitFor ? `<div class="sub2">${esc(p.fitFor)}</div>` : '')}<div class="line">${tags.join('')}</div></div>
+      <button class="add ${on ? 'on' : ''}" data-toggle="${p.id}">${btn}</button>${detBtn(p)}</div>`;
   }).join('');
   return cards || `<div class="empty">찾는 곳이 없어요. 직접 알아본 곳이면 '＋ 내가 찾은 곳'으로 넣어 보세요.</div>`;
 }
@@ -1146,8 +1189,9 @@ function paneStays() {
   ${combos ? `<details class="glance"><summary>취향별 추천 조합으로 한 번에 정하기 (${(DATA.combos || []).length}개)</summary><div class="cards">${combos}</div><p class="hint">두 숙소에 3박씩 머무는 걸 추천해요. 견적은 실제 날짜로, 조식·세금·봉사료·취소 조건을 포함해 비교하세요.</p></details>` : ''}
   <h3 class="section-title">숙소 후보 ${stays.length}곳 <small class="hint">· ${act + 1}번 숙박(${esc(slotLabel(act, true))})에 넣을 곳</small></h3>
   <div class="row"><input id="staySearch" type="search" placeholder="숙소 이름·지역 검색" value="${esc(S.sq || '')}" autocomplete="off" style="flex:1"></div>
-  <p class="hint">① 특히 먼저 볼 곳 · ② 함께 비교할 대안 · ③ 조건부. 가격은 2인 1박 원화이고, 2027년 6월 실제 요금은 예약 화면에서 다시 확인해야 해요. 카드를 누르면 상세 정보가 열려요.</p>
-  <div id="stayList">${stayCards()}</div>`;
+  <p class="hint">① 특히 먼저 볼 곳 · ② 함께 비교할 대안 · ③ 조건부. 가격은 2인 1박 원화이고, 2027년 6월 실제 요금은 예약 화면에서 다시 확인해야 해요. 카드를 누르면 지도에 위치가 표시되고, [상세 정보 보기]로 자세히 볼 수 있어요.</p>
+  <div class="row" style="justify-content:flex-end"><button class="btn small" data-dense>${isDense() ? '자세히 보기' : '한 줄로 보기'}</button></div>
+  <div id="stayList" class="${isDense() ? 'compact' : ''}">${stayCards()}</div>`;
 }
 const STAY_GROUPS = [['airport', '공항 근처 1박'], ['ubud', '우붓 — 정글·계곡 전망 풀빌라'], ['bukit', '울루와뚜·짐바란·누사두아 — 바다 전망'], ['west', '스미냑·짱구 — 쉬면서 식당·쇼핑도'], ['sanur', '사누르'], ['east', '동부 다이빙 거점'], ['nusa', '누사 섬'], ['north', '북부']];
 function stayCards() {
@@ -1160,11 +1204,11 @@ function stayCards() {
     if (!ps.length) return '';
     return `<h4 class="grouph">${esc(title)} <small>${ps.length}곳</small></h4><div class="cards">${ps.map(p => {
       const used = S.bases.findIndex(b => b.stay === p.id);
-      return `<div class="card stay ${used >= 0 ? 'on' : ''}" data-hl="${p.id}"><span class="recb r${p.rec || 0}">${p.rec ? '①②③'[p.rec - 1] : '·'}</span>
-      <div class="body" data-open="${p.id}"><h4>${esc(p.ko)}</h4><div class="en">${esc(p.en)} · ${esc(areaKo(p))}${p.loc ? ' · ' + esc(p.loc) : ''}</div>
+      return `<div class="card stay ${used >= 0 ? 'on' : ''} ${S.sel === p.id ? 'sel' : ''}" data-hl="${p.id}"><span class="recb r${p.rec || 0}">${p.rec ? '①②③'[p.rec - 1] : '·'}</span>
+      <div class="body" data-pick="${p.id}"><h4>${esc(p.ko)}</h4><div class="cline"><span class="cmeta">${esc([priceTag(p) ? priceTag(p) + '/박' : '', areaKo(p), p.krStrength === 'strong' ? '한국인 인기' : ''].filter(Boolean).join(' · '))}</span></div><div class="en">${esc(p.en)} · ${esc(areaKo(p))}${p.loc ? ' · ' + esc(p.loc) : ''}</div>
       <div class="line"><span class="tag price">${priceTag(p) || '요금 확인'}${priceTag(p) ? '/박' : ''}</span>${p.tier && tiers[p.tier] ? `<span class="tag">${tiers[p.tier]}</span>` : ''}${p.krStrength === 'strong' || (p.kpop || 0) >= 4 ? '<span class="tag hot">한국인 인기</span>' : ''}${p.status === 'uncertain' ? '<span class="tag unc">확인 필요</span>' : ''}</div>
       ${p.fitFor ? `<div class="sub2"><b>추천</b> ${esc(p.fitFor)}</div>` : ''}${p.check ? `<div class="sub2"><b>확인</b> ${esc(p.check)}</div>` : ''}</div>
-      ${assignBtn(p)}</div>`;
+      ${assignBtn(p)}${detBtn(p)}</div>`;
     }).join('')}</div>`;
   }).join('') || '<div class="empty">찾는 숙소가 없어요</div>';
 }
@@ -1392,10 +1436,11 @@ function useStay(id) {
   S.preset = null; toast('거점 숙소를 바꿨어요');
 }
 document.addEventListener('click', e => {
-  const t = e.target.closest('button, [data-open], tr[data-pair], tr[data-view]'); if (!t) return;
+  const t = e.target.closest('button, [data-open], [data-pick], tr[data-pair], tr[data-view]'); if (!t) return;
   const ds = t.dataset;
   if (ds.view) { S.view = ds.view === 'all' ? 'all' : +ds.view; render(true); return; }
   if (ds.tab) { S.tab = ds.tab; if (S.sheet === 'peek' && window.innerWidth < 900) setSheet('half'); render(); return; }
+  if (ds.pick) { HL.pick(ds.pick); return; }
   if (ds.open) { openDetail(ds.open); return; }
   if (ds.close !== undefined) { closeDetail(); return; }
   if (ds.toggle) {
@@ -1444,6 +1489,7 @@ document.addEventListener('click', e => {
   if (ds.delbase !== undefined) { const last = S.bases.pop(); if (S.bases.length) S.bases[S.bases.length - 1].nights += last.nights; S.slot = null; S.preset = null; render(); return; }
   if (ds.pair) { const [a, b] = ds.pair.split(':'); S.calc = { from: a, to: b }; renderCalc(); save(); return; }
   if (t.id === 'fitBtn') { fit(boundsFor(lastDays)); return; }
+  if (ds.dense !== undefined) { S.dense = !isDense(); render(); return; }
   if (ds.photo) { const [id, i] = ds.photo.split(':'); openPhoto(id, +i); return; }
   if (ds.lbclose !== undefined) { $('#lightbox').hidden = true; return; }
   if (ds.addmine !== undefined) { openAddForm(); return; }
@@ -1620,30 +1666,35 @@ function syncPane() {
 }
 
 
-// ---------- hover a list card -> highlight that place on the map ----------
-(function hoverHighlight() {
-  let cur = null, ring = null;
-  const show = id => {
+// ---------- tap a list card -> select it and move the map there ----------
+function detBtn(p) { return `<div class="cdet"><button class="btn small primary" data-open="${p.id}">상세 정보 보기</button><span class="hint">지도에서 위치를 표시했어요</span></div>`; }
+const HL = (function () {
+  let ring = null;
+  function visiblePad() {
+    const wide = window.innerWidth >= 900;
+    return { paddingTopLeft: [50, wide ? 50 : $('#topbar').offsetHeight + 50], paddingBottomRight: [50, wide ? 50 : $('#sheet').offsetHeight + 120] };
+  }
+  function draw(id, move) {
     const p = P[id]; if (!p) return;
     if (ring) map.removeLayer(ring);
-    ring = L.marker([p.lat, p.lng], { interactive: false, keyboard: false, zIndexOffset: 2000,
-      icon: L.divIcon({ className: '', iconSize: [0, 0], html: `<div class="hlring"><span></span><b>${esc(p.ko)}</b></div>` }) }).addTo(map);
-    const pt = map.latLngToContainerPoint([p.lat, p.lng]), sz = map.getSize();
-    if (pt.x < 40 || pt.y < 40 || pt.x > sz.x - 40 || pt.y > sz.y - 40) map.panTo([p.lat, p.lng], { animate: true, duration: 0.4 });
-  };
-  const hide = () => { if (ring) { map.removeLayer(ring); ring = null; } cur = null; };
-  document.addEventListener('mouseover', e => {
-    if (!window.matchMedia('(hover: hover)').matches) return;
-    const c = e.target.closest('.card[data-hl]');
-    const id = c ? c.dataset.hl : null;
-    if (id === cur) return;
-    if (!id) { hide(); return; }
-    cur = id; show(id);
-  });
-  document.getElementById('panes').addEventListener('mouseleave', hide);
-  document.getElementById('panes').addEventListener('scroll', () => { /* keep ring while scrolling */ }, { passive: true });
+    ring = L.marker([p.lat, p.lng], { keyboard: false, zIndexOffset: 2000,
+      icon: L.divIcon({ className: '', iconSize: [0, 0], html: `<div class="hlring"><span></span><b>${esc(p.ko)} · 상세 보기</b></div>` }) }).addTo(map);
+    ring.on('click', () => openDetail(id));
+    if (move) {
+      const z = Math.max(map.getZoom(), 12);
+      if (map.getZoom() < 12) map.setView([p.lat, p.lng], z, { animate: true });
+      try { map.panInside([p.lat, p.lng], { ...visiblePad(), animate: true, duration: 0.35 }); } catch (e) { /* ignore */ }
+    }
+  }
+  function pick(id) {
+    S.sel = id;
+    document.querySelectorAll('.card.sel').forEach(el => el.classList.remove('sel'));
+    document.querySelectorAll(`.card[data-hl="${CSS.escape(id)}"]`).forEach(el => el.classList.add('sel'));
+    draw(id, true);
+  }
+  return { pick, redraw() { if (S.sel && P[S.sel] && (S.tab === 'options' || S.tab === 'stays')) draw(S.sel, false); else if (ring) { map.removeLayer(ring); ring = null; } }, reset() { if (ring) { map.removeLayer(ring); ring = null; } } };
 })();
-
+window.HLreset = () => { S.sel = null; HL.reset(); };
 // ---------- render ----------
 function render(refit) {
   const days = HAS ? allDays() : [];
@@ -1652,6 +1703,7 @@ function render(refit) {
   renderChips(days); renderTabs();
   const onChip = document.querySelector('#dayChips [aria-pressed="true"]'); if (onChip) onChip.scrollIntoView({ block: 'nearest', inline: 'nearest' }); renderSummary(days, bud); renderPanes(days, bud); renderMap(days);
   if (refit) fit(boundsFor(days));
+  HL.redraw();
   const act = S.view !== 'all' && document.getElementById('day-' + S.view);
   if (act && S.tab === 'plan' && refit) act.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   save();
