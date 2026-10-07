@@ -809,7 +809,7 @@ function budget(days) {
 }
 
 // ---------- map ----------
-const map = L.map('map', { zoomControl: false, preferCanvas: true, minZoom: 8, maxZoom: 16, zoomSnap: 0.5, maxBounds: [[-9.25, 114.2], [-7.75, 116.0]], maxBoundsViscosity: 0.8 });
+const map = L.map('map', { zoomControl: false, preferCanvas: true, minZoom: 8, maxZoom: 16, zoomSnap: 0.5, maxBounds: [[-10.4, 113.4], [-6.8, 116.8]], maxBoundsViscosity: 0.4, dragging: true, touchZoom: true, bounceAtZoomLimits: false, inertia: true });
 L.control.zoom({ position: 'topright' }).addTo(map);
 map.attributionControl.setPrefix(false).addAttribution('지도 데이터 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 (ODbL)');
 const canvas = L.canvas({ padding: 0.5 });
@@ -1464,6 +1464,8 @@ function setSheet(k) { S.sheet = k; const h = sheetHeights()[k]; $('#app').style
   hd.addEventListener('pointerup', end); hd.addEventListener('pointercancel', end);
   hd.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSheet(S.sheet === 'peek' ? 'half' : S.sheet === 'half' ? 'full' : 'peek'); } });
 })();
+// on phones, moving the map folds the panel down so more of the map shows
+map.on('dragstart', () => { if (window.innerWidth < 900 && S.sheet !== 'peek') setSheet('peek'); });
 function syncTop() { document.documentElement.style.setProperty('--top-h', $('#topbar').offsetHeight + 'px'); }
 new ResizeObserver(() => { syncTop(); if (window.innerWidth < 900) setSheet(S.sheet || 'half'); }).observe($('#app'));
 
